@@ -229,12 +229,24 @@ jobs:
           cmake --build ..\out --config Release --parallel 2
 
       - name: Package artifact.
+        # Qt 6.11 ships ICU as separate DLLs even under a static Qt build —
+        # without them the user gets "icu.dll not found" on first launch.
+        # Copy them (and any other Qt runtime DLLs prepared into bin/) next
+        # to the .exe so the artifact is self-contained.
+        shell: cmd
         run: |
           set OUT=%TBUILD%\%REPO_NAME%\out\Release
+          set QTBIN=%LibrariesPath%\Qt-6.11.0\bin
           mkdir artifact
           if exist %OUT%\Opengram.exe move %OUT%\Opengram.exe artifact\
           if exist %OUT%\Telegram.exe move %OUT%\Telegram.exe artifact\Opengram.exe
           if exist %OUT%\Updater.exe move %OUT%\Updater.exe artifact\
+          if exist "%QTBIN%" (
+              for %%f in ("%QTBIN%\icu*.dll" "%QTBIN%\icudt*.dll" "%QTBIN%\icuin*.dll" "%QTBIN%\icuuc*.dll") do (
+                  if exist "%%f" copy /Y "%%f" artifact\ >nul
+              )
+          )
+          dir artifact
 
       - uses: actions/upload-artifact@v4
         name: Upload artifact.
