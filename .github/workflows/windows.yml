@@ -171,14 +171,18 @@ jobs:
           %TBUILD%\%REPO_NAME%\Telegram\build\prepare\win.bat silent qt6
 
       - name: Disable Qt 6.11 strict overflow asserts.
-        # Qt 6.11 hardened qsizetype / QSize / QPoint / layout arithmetic to
-        # assert via QCheckedInt<..., AssertReportPolicy> on every int-overflow,
-        # and the policy is template-baked so it fires regardless of CMAKE_BUILD_TYPE.
-        # In Opengram this stops the emoji-status picker (Q_ASSERT in qcheckedint_impl.h:69
-        # via __fastfail). We swap the policy in the Qt header to IgnoreOverflowPolicy
-        # before tdesktop is compiled so the affected math overflows silently like
-        # in Qt <= 6.10. Safe in practice — the values that overflow are layout
-        # ints used as cosmetic sizes, not security-sensitive bounds.
+        # Qt 6.11 hardened qsizetype / QSize / QPoint / layout arithmetic and
+        # bakes a `Q_ASSERT_X(... "Overflow in operator+ ...")` directly into
+        # QCheckedInt::operator+ / -* / etc. — bypassing any "policy" template
+        # arg, so the assert fires regardless of CMAKE_BUILD_TYPE and regardless
+        # of whether the code chose AssertReportPolicy or IgnoreOverflowPolicy.
+        # In Opengram this stops the emoji-status picker dead (__fastfail at
+        # qcheckedint_impl.h:69). We neutralise Q_ASSERT_X / Q_ASSERT for the
+        # scope of this single header by wrapping it with push_macro/pop_macro:
+        # asserts in the rest of Qt and tdesktop are untouched, only the int
+        # arithmetic in qcheckedint_impl.h overflows silently as in Qt <= 6.10.
+        # Safe in practice — the values that overflow are cosmetic layout ints
+        # (column widths, paddings), not security-sensitive bounds.
         shell: pwsh
         run: |
           $hdr = Get-ChildItem -Path "$env:LibrariesPath" -Recurse -Filter qcheckedint_impl.h `
@@ -186,14 +190,32 @@ jobs:
           if (-not $hdr) {
             Write-Host "::warning::qcheckedint_impl.h not found under $env:LibrariesPath — Qt 6.11 layout may have changed, skipping patch"
           } else {
-            Write-Host "Patching $($hdr.FullName)"
+            $marker = '/* opengram-overflow-asserts-disabled */'
             $content = Get-Content -Raw -LiteralPath $hdr.FullName
-            $patched = $content -replace 'AssertReportPolicy', 'IgnoreOverflowPolicy'
-            if ($patched -ne $content) {
-              Set-Content -NoNewline -LiteralPath $hdr.FullName -Value $patched
-              Write-Host "Patched: AssertReportPolicy -> IgnoreOverflowPolicy"
+            if ($content.Contains($marker)) {
+              Write-Host "Header already patched at $($hdr.FullName) — skipping"
             } else {
-              Write-Host "::warning::AssertReportPolicy not found in header — patch is a no-op"
+              $prefix = @"
+$marker
+// Qt 6.11 fires Q_ASSERT_X from QCheckedInt::operator+ / -*'s body
+// directly — even when the IgnoreOverflowPolicy template arg is chosen.
+// Mute the assert macros for the duration of this header so the int
+// arithmetic overflows silently like it did in Qt <= 6.10.
+#pragma push_macro("Q_ASSERT_X")
+#pragma push_macro("Q_ASSERT")
+#undef Q_ASSERT_X
+#undef Q_ASSERT
+#define Q_ASSERT_X(cond, where, what) ((void)0)
+#define Q_ASSERT(cond) ((void)0)
+"@
+              $suffix = @"
+
+#pragma pop_macro("Q_ASSERT")
+#pragma pop_macro("Q_ASSERT_X")
+"@
+              $patched = $prefix + "`r`n" + $content + "`r`n" + $suffix
+              Set-Content -NoNewline -LiteralPath $hdr.FullName -Value $patched
+              Write-Host "Patched $($hdr.FullName): wrapped Q_ASSERT_X / Q_ASSERT in push/pop_macro guards"
             }
           }
 

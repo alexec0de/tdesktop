@@ -384,8 +384,8 @@ MainMenu::MainMenu(
 	parentResized();
 
 	_telegram->setMarkedText(tr::link(
-		u"Telegram Desktop"_q,
-		u"https://desktop.telegram.org"_q));
+		u"Opengram Desktop"_q,
+		u"https://opengra.me"_q));
 	_telegram->setLinksTrusted();
 	_version->setMarkedText(
 		tr::link(
