@@ -111,7 +111,11 @@ void SignupWidget::cancelled() {
 }
 
 void SignupWidget::nameSubmitDone(const MTPauth_Authorization &result) {
-	finish(result);
+	// Тут я забирал результат регистрации, но забывал отдать выбранное
+	// на экране регистрации фото профиля — оно молча терялось, аккаунт
+	// создавался без аватарки. Передаю картинку дальше: finish() ->
+	// createSession() сам зальёт её через peerPhoto().upload().
+	finish(result, _photo->takeResultImage());
 }
 
 void SignupWidget::nameSubmitFail(const MTP::Error &error) {
