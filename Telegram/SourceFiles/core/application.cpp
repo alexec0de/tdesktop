@@ -61,6 +61,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "media/view/media_view_open_common.h"
 #include "mtproto/mtproto_dc_options.h"
 #include "mtproto/mtproto_config.h"
+#include "opengram/opengram_custom_server.h"
 #include "media/audio/media_audio_track.h"
 #include "media/player/media_player_instance.h"
 #include "media/player/media_player_float.h"
@@ -380,6 +381,16 @@ void Application::run() {
 	}, _lifetime);
 
 	DEBUG_LOG(("Application Info: window created..."));
+
+	// Тяну динамические адреса DC с https://api.opengra.me/v1/config
+	// и применяю их в built-in конфиг ДО startDomain() (там создаётся
+	// MTP::Instance и идёт первый коннект). DcOptions::loadFromFile()
+	// внутри ставит _immutable=true — серверный help.getConfig потом
+	// не сможет перезаписать адреса, а вшитый RSA-ключ не трогается.
+	// Любой провал (нет сети, нет кэша) безопасен: остаются built-in
+	// адреса и старт продолжается как обычно.
+	Opengram::ApplyCustomServerConfig(
+		&fallbackProductionConfig().dcOptions());
 
 	startDomain();
 	startTray();

@@ -1448,6 +1448,8 @@ PRIVATE
     mtproto/special_config_request.cpp
     mtproto/special_config_request.h
     mtproto/type_utils.h
+    opengram/opengram_custom_server.cpp
+    opengram/opengram_custom_server.h
     overview/overview_checkbox.cpp
     overview/overview_checkbox.h
     overview/overview_layout.cpp
