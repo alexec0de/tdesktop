@@ -30,24 +30,114 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 namespace Opengram {
 namespace {
 
-// Эндпойнт конфигурации и таймаут синхронного запроса.
-// Держу таймаут небольшим: это блокирует старт приложения, поэтому
-// 2 секунды — потолок, дальше падаем в кэш / built-in.
-constexpr auto kConfigUrl = "https://api.opengra.me/v1/config";
-constexpr auto kRequestTimeoutMs = 2000;
+// Дефолты. Их можно переопределить на лету, без пересборки, через
+// локальный файл opengram_settings.json в рабочей директории — см.
+// LoadSettings(). Сюда же кладётся дефолтный файл на первом запуске,
+// чтобы было что и где править.
+constexpr auto kDefaultConfigUrl = "https://api.opengra.me/v1/config";
+constexpr auto kDefaultTimeoutMs = 6000;
+constexpr auto kDefaultDcIp = "195.34.237.232";
+constexpr auto kDefaultDcPort = 4430;
 
 // Имя файла кэша в рабочей директории (cWorkingDir()). Сюда
 // складываю последний успешно скачанный JSON — на случай оффлайна.
 constexpr auto kCacheFileName = "opengram_dc_config.json";
+// Файл с настройками клиента (URL/таймаут/built-in DC) рядом с кэшем.
+constexpr auto kSettingsFileName = "opengram_settings.json";
 
 [[nodiscard]] QString CacheFilePath() {
 	// cWorkingDir() уже оканчивается на '/', но подстрахуюсь через QDir.
 	return QDir(cWorkingDir()).filePath(kCacheFileName);
 }
 
+[[nodiscard]] QString SettingsFilePath() {
+	return QDir(cWorkingDir()).filePath(QString::fromUtf8(kSettingsFileName));
+}
+
+// Настройки клиента, читаемые на старте из opengram_settings.json.
+// Любое поле необязательно — отсутствует/кривое → берётся дефолт.
+struct Settings {
+	QString configUrl = QString::fromUtf8(kDefaultConfigUrl);
+	int timeoutMs = kDefaultTimeoutMs;
+	// Строки формата "dcId ip port" — то, что ест ApplyEndpoints().
+	// Пусто → крайний fallback на компилированные kBuiltInDcs[].
+	QStringList builtinEndpoints;
+};
+
+[[nodiscard]] Settings LoadSettings() {
+	auto result = Settings();
+
+	auto file = QFile(SettingsFilePath());
+	if (!file.open(QIODevice::ReadOnly)) {
+		return result; // Файла нет — чистые дефолты.
+	}
+	const auto raw = file.readAll();
+	file.close();
+
+	auto error = QJsonParseError();
+	const auto document = QJsonDocument::fromJson(raw, &error);
+	if (error.error != QJsonParseError::NoError || !document.isObject()) {
+		LOG(("Opengram: settings parse error: %1, using defaults"
+			).arg(error.errorString()));
+		return result;
+	}
+	const auto root = document.object();
+
+	const auto url = root.value(u"config_url"_q).toString();
+	if (!url.isEmpty()) {
+		result.configUrl = url;
+	}
+	const auto timeout = root.value(u"request_timeout_ms"_q).toInt();
+	if (timeout > 0) {
+		result.timeoutMs = timeout;
+	}
+	for (const auto &dcValue : root.value(u"builtin_dcs"_q).toArray()) {
+		const auto dc = dcValue.toObject();
+		const auto id = dc.value(u"id"_q).toInt();
+		const auto ip = dc.value(u"ip"_q).toString();
+		const auto port = dc.value(u"port"_q).toInt();
+		if (id > 0 && !ip.isEmpty() && port > 0) {
+			result.builtinEndpoints.push_back(
+				QString::number(id) + ' ' + ip + ' '
+				+ QString::number(port));
+		}
+	}
+	return result;
+}
+
+// На первом запуске кладу рядом дефолтный opengram_settings.json,
+// чтобы пользователь видел где и что менять ("чтобы было чётко").
+void EnsureDefaultSettingsFile() {
+	const auto path = SettingsFilePath();
+	if (QFile::exists(path)) {
+		return;
+	}
+	auto root = QJsonObject();
+	root.insert(u"config_url"_q, QString::fromUtf8(kDefaultConfigUrl));
+	root.insert(u"request_timeout_ms"_q, kDefaultTimeoutMs);
+	auto dcs = QJsonArray();
+	for (auto id = 1; id <= 5; ++id) {
+		auto dc = QJsonObject();
+		dc.insert(u"id"_q, id);
+		dc.insert(u"ip"_q, QString::fromUtf8(kDefaultDcIp));
+		dc.insert(u"port"_q, kDefaultDcPort);
+		dcs.push_back(dc);
+	}
+	root.insert(u"builtin_dcs"_q, dcs);
+
+	auto file = QFile(path);
+	if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+		file.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
+		file.close();
+	} else {
+		LOG(("Opengram: could not write default settings to '%1'"
+			).arg(path));
+	}
+}
+
 // Синхронно тяну тело ответа по HTTPS с жёстким таймаутом.
 // Возвращаю пустой QByteArray при любой ошибке/таймауте.
-[[nodiscard]] QByteArray FetchSync(const QString &url) {
+[[nodiscard]] QByteArray FetchSync(const QString &url, int timeoutMs) {
 	auto manager = QNetworkAccessManager();
 
 	auto request = QNetworkRequest(QUrl(url));
@@ -61,7 +151,7 @@ constexpr auto kCacheFileName = "opengram_dc_config.json";
 		return QByteArray();
 	}
 
-	// Сам таймаут: если за kRequestTimeoutMs ответа нет — рву запрос
+	// Сам таймаут: если за timeoutMs ответа нет — рву запрос
 	// и выходим из локального event-loop'а.
 	auto timer = QTimer();
 	timer.setSingleShot(true);
@@ -76,7 +166,7 @@ constexpr auto kCacheFileName = "opengram_dc_config.json";
 		&QNetworkReply::finished,
 		[&] { loop.quit(); });
 
-	timer.start(kRequestTimeoutMs);
+	timer.start(timeoutMs);
 	loop.exec();
 	timer.stop();
 
@@ -215,8 +305,13 @@ void WriteCache(const QByteArray &json) {
 } // namespace
 
 void ApplyCustomServerConfig(not_null<MTP::DcOptions*> dcOptions) {
+	// На первом запуске создаю opengram_settings.json с дефолтами —
+	// дальше URL/таймаут/built-in DC меняются в нём без пересборки.
+	EnsureDefaultSettingsFile();
+	const auto settings = LoadSettings();
+
 	// Шаг 1: пробую свежий конфиг по сети. Успех -> обновляю кэш.
-	auto json = FetchSync(QString::fromUtf8(kConfigUrl));
+	auto json = FetchSync(settings.configUrl, settings.timeoutMs);
 	if (!json.isEmpty()) {
 		const auto endpoints = ParseEndpoints(json);
 		if (!endpoints.isEmpty() && ApplyEndpoints(dcOptions, endpoints)) {
@@ -235,10 +330,17 @@ void ApplyCustomServerConfig(not_null<MTP::DcOptions*> dcOptions) {
 		}
 	}
 
-	// Шаг 3: ни сети, ни кэша — молча остаёмся на built-in адресах
-	// (вшитый kBuiltInDcs[] в mtproto_dc_options.cpp). Это штатный
-	// fallback, старт приложения продолжается без помех.
-	LOG(("Opengram: using built-in DC addresses (no custom config)"));
+	// Шаг 3: ни сети, ни кэша — built-in DC из opengram_settings.json
+	// (тоже редактируется на лету, без пересборки).
+	if (!settings.builtinEndpoints.isEmpty()
+			&& ApplyEndpoints(dcOptions, settings.builtinEndpoints)) {
+		LOG(("Opengram: applied built-in DCs from opengram_settings.json"));
+		return;
+	}
+
+	// Шаг 4: совсем ничего — остаёмся на компилированных kBuiltInDcs[]
+	// (mtproto_dc_options.cpp). Крайний fallback, старт не блокируется.
+	LOG(("Opengram: using compiled built-in DC addresses"));
 }
 
 } // namespace Opengram
