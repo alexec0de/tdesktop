@@ -18,6 +18,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/random.h"
 #include "ui/power_saving.h"
 #include "core/update_checker.h"
+#include "opengram/opengram_custom_server.h"
 #include "core/file_location.h"
 #include "core/application.h"
 #include "core/core_settings.h"
@@ -545,6 +546,12 @@ const QString &readAutoupdatePrefixRaw() {
 	const auto &result = AutoupdatePrefix();
 	if (!result.isEmpty()) {
 		return result;
+	}
+	// Opengram: приоритет — update_url из opengram_settings.json
+	// (меняется без пересборки). Пусто -> прежняя логика ниже.
+	const auto fromSettings = Opengram::ConfiguredUpdateUrl();
+	if (!fromSettings.isEmpty()) {
+		return AutoupdatePrefix(fromSettings);
 	}
 	QFile f(autoupdatePrefixFile());
 	if (f.open(QIODevice::ReadOnly)) {

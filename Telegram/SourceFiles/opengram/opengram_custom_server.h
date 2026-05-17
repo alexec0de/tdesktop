@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
+#include <QtCore/QString>
+
 namespace MTP {
 class DcOptions;
 } // namespace MTP
@@ -23,11 +25,17 @@ namespace Opengram {
 // на этот момент fallbackProductionConfig().dcOptions() уже создан
 // (built-in адреса), а MTP::Instance / первый коннект ещё нет.
 //
-// Поведение при сбое сети: пробую свежий конфиг по HTTP (таймаут
-// ~2000мс), при успехе пишу его в кэш в cWorkingDir(). Если сеть
-// недоступна — поднимаю последний кэш. Если и кэша нет — ничего не
-// делаю, остаются вшитые built-in адреса. Любой провал НЕ должен
-// мешать старту приложения, поэтому функция ничего не кидает.
+// URL/таймаут/built-in DC берутся из opengram_settings.json рядом с
+// данными приложения (создаётся с дефолтами на первом запуске) —
+// меняются без пересборки. Если config_url пуст — сеть и кэш
+// пропускаются, DC берутся сразу из builtin_dcs того же файла.
+// Любой провал НЕ должен мешать старту приложения, функция не кидает.
 void ApplyCustomServerConfig(not_null<MTP::DcOptions*> dcOptions);
+
+// Базовый URL апдейтера из opengram_settings.json (поле "update_url").
+// Апдейтер сам дописывает к нему "/current". Пусто -> вызывающий код
+// берёт свой дефолт (см. Local::readAutoupdatePrefixRaw). Читается с
+// диска на каждый вызов — менять можно без пересборки.
+[[nodiscard]] QString ConfiguredUpdateUrl();
 
 } // namespace Opengram

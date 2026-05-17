@@ -38,6 +38,10 @@ constexpr auto kDefaultConfigUrl = "https://api.opengra.me/v1/config";
 constexpr auto kDefaultTimeoutMs = 6000;
 constexpr auto kDefaultDcIp = "195.34.237.232";
 constexpr auto kDefaultDcPort = 4430;
+// Базовый URL апдейтера (совпадает с дефолтом в localstorage.cpp,
+// чтобы поведение без правки файла не менялось). "/current" — за
+// апдейтером.
+constexpr auto kDefaultUpdateUrl = "https://opengra.me";
 
 // Имя файла кэша в рабочей директории (cWorkingDir()). Сюда
 // складываю последний успешно скачанный JSON — на случай оффлайна.
@@ -62,6 +66,9 @@ struct Settings {
 	// Строки формата "dcId ip port" — то, что ест ApplyEndpoints().
 	// Пусто → крайний fallback на компилированные kBuiltInDcs[].
 	QStringList builtinEndpoints;
+	// Базовый URL апдейтера ("/current" дописывает сам апдейтер).
+	// Пусто → берётся дефолт в Local::readAutoupdatePrefixRaw.
+	QString updateUrl;
 };
 
 [[nodiscard]] Settings LoadSettings() {
@@ -83,14 +90,17 @@ struct Settings {
 	}
 	const auto root = document.object();
 
-	const auto url = root.value(u"config_url"_q).toString();
-	if (!url.isEmpty()) {
-		result.configUrl = url;
+	// config_url: если ключа нет — дефолт; если есть, в т.ч. ЯВНО
+	// пустой ("") — берём как есть. Пустой => сеть/кэш пропускаем
+	// и DC идут сразу из builtin_dcs (см. ApplyCustomServerConfig).
+	if (root.contains(u"config_url"_q)) {
+		result.configUrl = root.value(u"config_url"_q).toString().trimmed();
 	}
 	const auto timeout = root.value(u"request_timeout_ms"_q).toInt();
 	if (timeout > 0) {
 		result.timeoutMs = timeout;
 	}
+	result.updateUrl = root.value(u"update_url"_q).toString().trimmed();
 	for (const auto &dcValue : root.value(u"builtin_dcs"_q).toArray()) {
 		const auto dc = dcValue.toObject();
 		const auto id = dc.value(u"id"_q).toInt();
@@ -115,6 +125,7 @@ void EnsureDefaultSettingsFile() {
 	auto root = QJsonObject();
 	root.insert(u"config_url"_q, QString::fromUtf8(kDefaultConfigUrl));
 	root.insert(u"request_timeout_ms"_q, kDefaultTimeoutMs);
+	root.insert(u"update_url"_q, QString::fromUtf8(kDefaultUpdateUrl));
 	auto dcs = QJsonArray();
 	for (auto id = 1; id <= 5; ++id) {
 		auto dc = QJsonObject();
@@ -310,6 +321,20 @@ void ApplyCustomServerConfig(not_null<MTP::DcOptions*> dcOptions) {
 	EnsureDefaultSettingsFile();
 	const auto settings = LoadSettings();
 
+	// config_url пуст -> сеть и кэш НЕ трогаем, DC берём сразу из
+	// локального builtin_dcs (полностью офлайн/ручной режим).
+	if (settings.configUrl.isEmpty()) {
+		if (!settings.builtinEndpoints.isEmpty()
+				&& ApplyEndpoints(dcOptions, settings.builtinEndpoints)) {
+			LOG(("Opengram: config_url empty, applied builtin_dcs "
+				"from opengram_settings.json"));
+			return;
+		}
+		LOG(("Opengram: config_url empty and no builtin_dcs, "
+			"using compiled built-in DC addresses"));
+		return;
+	}
+
 	// Шаг 1: пробую свежий конфиг по сети. Успех -> обновляю кэш.
 	auto json = FetchSync(settings.configUrl, settings.timeoutMs);
 	if (!json.isEmpty()) {
@@ -341,6 +366,13 @@ void ApplyCustomServerConfig(not_null<MTP::DcOptions*> dcOptions) {
 	// Шаг 4: совсем ничего — остаёмся на компилированных kBuiltInDcs[]
 	// (mtproto_dc_options.cpp). Крайний fallback, старт не блокируется.
 	LOG(("Opengram: using compiled built-in DC addresses"));
+}
+
+QString ConfiguredUpdateUrl() {
+	// Читаю файл заново (без кэша): апдейтер дёргает префикс не на
+	// старте, к этому моменту opengram_settings.json уже на месте,
+	// а правка подхватится без пересборки.
+	return LoadSettings().updateUrl;
 }
 
 } // namespace Opengram
