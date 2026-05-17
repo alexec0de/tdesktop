@@ -35,6 +35,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/ui_utility.h"
 #include "boxes/abstract_box.h"
 #include "core/update_checker.h"
+#include "core/file_utilities.h"
 #include "core/application.h"
 #include "mtproto/mtproto_dc_options.h"
 #include "window/window_slide_animation.h"
@@ -118,6 +119,10 @@ Widget::Widget(
 	}
 
 	setupStep();
+
+	// Opengram: маленькая ссылка-кнопка под «Start Messaging».
+	createSupportLink();
+
 	fixOrder();
 
 	if (_account->mtp().isTestMode()) {
@@ -309,6 +314,23 @@ void Widget::createLanguageLink() {
 	}
 }
 
+void Widget::createSupportLink() {
+	if (_support) {
+		return;
+	}
+	_support.create(
+		this,
+		object_ptr<Ui::LinkButton>(this, u"Поддержать проект"_q));
+	_support->hide(anim::type::instant);
+	_support->entity()->setClickedCallback([=] {
+		File::OpenUrl(u"https://opengra.me/donate"_q);
+	});
+	_support->toggle(
+		!_resetAccount && !_terms && _nextShown,
+		anim::type::instant);
+	updateControlsGeometry();
+}
+
 void Widget::checkUpdateStatus() {
 	Expects(!Core::UpdaterDisabled());
 
@@ -445,6 +467,7 @@ void Widget::fixOrder() {
 	_next->raise();
 	if (_update) _update->raise();
 	if (_changeLanguage) _changeLanguage->raise();
+	if (_support) _support->raise();
 	_settings->raise();
 	_back->raise();
 	floatPlayerRaiseAll();
@@ -527,6 +550,11 @@ void Widget::showTerms() {
 	}
 	if (_changeLanguage) {
 		_changeLanguage->toggle(
+			!_terms && !_resetAccount && _nextShown,
+			anim::type::normal);
+	}
+	if (_support) {
+		_support->toggle(
 			!_terms && !_resetAccount && _nextShown,
 			anim::type::normal);
 	}
@@ -718,6 +746,11 @@ void Widget::showControls() {
 			!_resetAccount && !_terms && _nextShown,
 			anim::type::instant);
 	}
+	if (_support) {
+		_support->toggle(
+			!_resetAccount && !_terms && _nextShown,
+			anim::type::instant);
+	}
 	if (_terms) {
 		_terms->show(anim::type::instant);
 	}
@@ -741,6 +774,11 @@ void Widget::setupNextButton() {
 		_nextShown = visible;
 		if (_changeLanguage) {
 			_changeLanguage->toggle(
+				!_resetAccount && !_terms && _nextShown,
+				anim::type::normal);
+		}
+		if (_support) {
+			_support->toggle(
 				!_resetAccount && !_terms && _nextShown,
 				anim::type::normal);
 		}
@@ -857,6 +895,19 @@ void Widget::updateControlsGeometry() {
 		_changeLanguage->moveToLeft(
 			(width() - _changeLanguage->width()) / 2,
 			_next->y() + _next->height() + _changeLanguage->height());
+	}
+	if (_support) {
+		// Под «Start Messaging»; если есть смена языка — ещё ниже неё.
+		const auto top = _changeLanguage
+			? (_changeLanguage->y()
+				+ _changeLanguage->height()
+				+ _support->height())
+			: (_next->y()
+				+ _next->height()
+				+ _support->height());
+		_support->moveToLeft(
+			(width() - _support->width()) / 2,
+			top);
 	}
 	if (_resetAccount) {
 		_resetAccount->moveToLeft(
