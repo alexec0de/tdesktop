@@ -195,25 +195,26 @@ jobs:
             if ($content.Contains($marker)) {
               Write-Host "Header already patched at $($hdr.FullName) — skipping"
             } else {
-              $prefix = @"
-$marker
-// Qt 6.11 fires Q_ASSERT_X from QCheckedInt::operator+ / -*'s body
-// directly — even when the IgnoreOverflowPolicy template arg is chosen.
-// Mute the assert macros for the duration of this header so the int
-// arithmetic overflows silently like it did in Qt <= 6.10.
-#pragma push_macro("Q_ASSERT_X")
-#pragma push_macro("Q_ASSERT")
-#undef Q_ASSERT_X
-#undef Q_ASSERT
-#define Q_ASSERT_X(cond, where, what) ((void)0)
-#define Q_ASSERT(cond) ((void)0)
-"@
-              $suffix = @"
-
-#pragma pop_macro("Q_ASSERT")
-#pragma pop_macro("Q_ASSERT_X")
-"@
-              $patched = $prefix + "`r`n" + $content + "`r`n" + $suffix
+              # Собираю через массив строк, а не here-string: PowerShell @"..."@
+              # требует, чтобы открывающий и закрывающий маркеры стояли в первой
+              # колонке без отступа — это конфликтует с YAML-отступами под
+              # `run: |` и валит парсер ("could not find expected ':'").
+              $nl = "`r`n"
+              $prefix = ($marker,
+                '// Qt 6.11 fires Q_ASSERT_X from QCheckedInt::operator+ / -*''s body',
+                '// directly — even when the IgnoreOverflowPolicy template arg is chosen.',
+                '// Mute the assert macros for the duration of this header so the int',
+                '// arithmetic overflows silently like it did in Qt <= 6.10.',
+                '#pragma push_macro("Q_ASSERT_X")',
+                '#pragma push_macro("Q_ASSERT")',
+                '#undef Q_ASSERT_X',
+                '#undef Q_ASSERT',
+                '#define Q_ASSERT_X(cond, where, what) ((void)0)',
+                '#define Q_ASSERT(cond) ((void)0)') -join $nl
+              $suffix = ('',
+                '#pragma pop_macro("Q_ASSERT")',
+                '#pragma pop_macro("Q_ASSERT_X")') -join $nl
+              $patched = $prefix + $nl + $content + $nl + $suffix
               Set-Content -NoNewline -LiteralPath $hdr.FullName -Value $patched
               Write-Host "Patched $($hdr.FullName): wrapped Q_ASSERT_X / Q_ASSERT in push/pop_macro guards"
             }
