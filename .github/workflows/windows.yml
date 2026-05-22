@@ -13,7 +13,13 @@ on:
 jobs:
   windows:
     name: Windows ${{ matrix.arch_label }} build
-    runs-on: ${{ matrix.arch == 'arm64' && 'windows-11-arm' || 'windows-latest' }}
+    # x64 идёт на self-hosted runner (Windows VM на pve, диск /mnt/data1
+    # хватает с запасом — было 'No space left on device' на github-hosted).
+    # arm64 пока остаётся на GitHub'овском windows-11-arm — у нас нет
+    # ARM-машины под self-host. Если у runner'а нет нужного label —
+    # workflow повиснет в pending, поэтому label 'tdesktop' дублирую в
+    # setup-self-hosted-runner.ps1.
+    runs-on: ${{ matrix.arch == 'arm64' && fromJSON('["windows-11-arm"]') || fromJSON('["self-hosted", "Windows", "X64", "tdesktop"]') }}
     timeout-minutes: 360
 
     strategy:
@@ -125,6 +131,11 @@ jobs:
           restore-keys: ${{ runner.OS }}-${{ matrix.arch }}-qt6-
 
       - name: Free disk space (Windows).
+        # На self-hosted runner'е (windows-11-arm — github-hosted, остальное
+        # наше) этих директорий просто нет, а runner с большой VM-диском
+        # никуда не упрётся. Запускаю только на github-hosted, чтобы
+        # самосбор не плевал ошибками "path not found".
+        if: runner.environment == 'github-hosted'
         shell: pwsh
         run: |
           # Qt 6.11 debug+release на static-runtime сборке выжирает диск
@@ -259,7 +270,13 @@ jobs:
           -D TDESKTOP_API_ID=%TDESKTOP_API_ID% ^
           -D TDESKTOP_API_HASH=%TDESKTOP_API_HASH%
 
-          cmake --build ..\out --config Release --parallel
+          rem --parallel без числа = все ядра runner'а (4-8). Тяжёлые
+          rem TU вроде send_files_box / share_box / star_gift_* временно
+          rem держат >200 МБ .obj/.pdb каждый; 8 одновременно = ENOSPC
+          rem на C: (видел "No space left on device" даже после
+          rem расширенного Free disk space). Ограничиваю до 2 как в
+          rem windows-x86.yml — медленнее, но добегает до конца.
+          cmake --build ..\out --config Release --parallel 2
 
       - name: Package artifact.
         # Qt 6.11 ships ICU as separate DLLs even under a static Qt build —
