@@ -116,14 +116,15 @@ void ConfigLoader::enumerate() {
 }
 
 void ConfigLoader::refreshSpecialLoader() {
-	if (_proxyEnabled || _instance->isKeysDestroyer()) {
-		_specialLoader.reset();
-		return;
-	}
-	if (!_specialLoader
-		|| (!_specialEnumRequest && _specialEndpoints.empty())) {
-		createSpecialLoader();
-	}
+	// У opengram-сервера свои DC (см. ENV DC_*_ADDRESS_*_IP в ogram.service);
+	// штатный SpecialConfigRequest ходит через зашифрованный DNS-конфиг к
+	// официальным Telegram-овским «special endpoints» (вроде 194.221.250.50,
+	// Aurora DC4). Клиент берёт их за валидные fallback'и, лезет туда с
+	// нашим auth_key, ловит таймаут, через 8-16с массово cancel'ит все
+	// pending-запросы → процесс выходит → деструктор Animations::Manager
+	// падает по Expects(_active.empty()) при наведении на эмодзи/стикеры.
+	// Просто никогда не стартую special-loader — клиент знает наши DC.
+	_specialLoader.reset();
 }
 
 void ConfigLoader::setPhone(const QString &phone) {
@@ -156,22 +157,12 @@ void ConfigLoader::addSpecialEndpoint(
 		const std::string &ip,
 		int port,
 		bytes::const_span secret) {
-	const auto endpoint = SpecialEndpoint {
-		dcId,
-		ip,
-		port,
-		bytes::make_vector(secret)
-	};
-	if (base::contains(_specialEndpoints, endpoint)
-		|| base::contains(_triedSpecialEndpoints, endpoint)) {
-		return;
-	}
-	DEBUG_LOG(("MTP Info: Special endpoint received, '%1:%2'").arg(ip.c_str()).arg(port));
-	_specialEndpoints.push_back(endpoint);
-
-	if (!_specialEnumTimer.isActive()) {
-		_specialEnumTimer.callOnce(1);
-	}
+	// Specifically для opengram-форка: отбрасываю любые "special endpoints"
+	// (см. refreshSpecialLoader выше — там объяснение). Раньше через них
+	// клиент уходил на 194.221.250.50 (оф. TG DC4), что приводило к
+	// каскаду таймаутов и крашу.
+	DEBUG_LOG(("MTP Info: Special endpoint suppressed (opengram-fork), '%1:%2' for dc%3"
+		).arg(ip.c_str()).arg(port).arg(dcId));
 }
 
 void ConfigLoader::sendSpecialRequest() {
