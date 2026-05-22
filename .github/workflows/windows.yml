@@ -127,41 +127,58 @@ jobs:
       - name: Free disk space (Windows).
         shell: pwsh
         run: |
-          # Qt 6.11 debug+release on a static-runtime build blows past the
-          # ~14 GB free that windows-latest ships with. Wipe runner-bundled
-          # toolchains we don't need so PCH/.pdb writes stop hitting ENOSPC.
+          # Qt 6.11 debug+release на static-runtime сборке выжирает диск
+          # сверх ~14 GB свободных, которые есть на windows-latest. Чищу
+          # ВСЁ что не нужно для нативной C++ сборки — список один к одному
+          # с windows-x86.yml, чтобы и x64 не упирался в ENOSPC при PCH/.pdb.
+          # ОСТОРОЖНО: НЕ трогаю C:\ProgramData\Chocolatey — там build-
+          # инструменты (ninja, cmake), и не трогаю Strawberry/msys64/
+          # Miniconda — perl из Strawberry нужен части prepare-скриптов.
           $targets = @(
-            'C:\Android',
-            'C:\Program Files (x86)\Android',
-            'C:\Program Files\Google\Android',
+            # Mobile/cross toolchains
+            'C:\Android', 'C:\Program Files (x86)\Android', 'C:\Program Files\Google\Android',
+            # JDKs we don't use
             'C:\hostedtoolcache\Java_Adopt_jdk',
             'C:\hostedtoolcache\Java_Temurin-Hotspot_jdk',
             'C:\hostedtoolcache\Java_Microsoft_jdk',
             'C:\hostedtoolcache\Java_Zulu_jdk',
-            'C:\hostedtoolcache\go',
-            'C:\hostedtoolcache\Ruby',
-            'C:\hostedtoolcache\PyPy',
-            'C:\hostedtoolcache\node',
-            'C:\Program Files\dotnet',
-            'C:\Program Files (x86)\dotnet',
-            'C:\Program Files\MongoDB',
-            'C:\Program Files (x86)\MongoDB',
+            'C:\Program Files\Microsoft\jdk-*',
+            # Other languages / runtimes (none of these are on prepare PATH)
+            'C:\hostedtoolcache\go', 'C:\hostedtoolcache\Ruby', 'C:\hostedtoolcache\PyPy',
+            'C:\hostedtoolcache\node', 'C:\hostedtoolcache\boost',
+            # .NET / SQL / Mongo (not needed for native C++ build)
+            'C:\Program Files\dotnet', 'C:\Program Files (x86)\dotnet',
+            'C:\Program Files\MongoDB', 'C:\Program Files (x86)\MongoDB',
             'C:\Program Files\Microsoft SQL Server',
             'C:\Program Files (x86)\Microsoft SQL Server',
             'C:\Program Files (x86)\WindowsPowerShell\Modules\Az*',
+            # Browsers (won't be launched by tests)
             'C:\Program Files\Mozilla Firefox',
             'C:\Program Files\Mozilla Maintenance Service',
             'C:\Program Files (x86)\Google\Chrome',
             'C:\Program Files\Google\Chrome',
-            'C:\Program Files\Microsoft\Edge'
+            'C:\Program Files\Microsoft\Edge',
+            # Selenium / browser automation
+            'C:\selenium', 'C:\SeleniumWebDrivers',
+            # Visual Studio bits we don't need (other workloads)
+            'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\IDE\CommonExtensions\Microsoft\TeamFoundation',
+            'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\IDE\Extensions\TestPlatform',
+            # Visual Studio installer cache — keep VS itself, drop only
+            # the package cache used to repair/reinstall workloads.
+            'C:\ProgramData\Package Cache',
+            'C:\Users\runneradmin\.npm',
+            'C:\Users\runneradmin\AppData\Local\NuGet\v3-cache',
+            "$env:TEMP\*", "$env:windir\Temp\*"
           )
           foreach ($t in $targets) {
-            if (Test-Path $t) {
-              Write-Host "Removing $t"
-              Remove-Item -Recurse -Force $t -ErrorAction SilentlyContinue
+            $resolved = Resolve-Path -Path $t -ErrorAction SilentlyContinue
+            foreach ($p in $resolved) {
+              Write-Host "Removing $p"
+              Remove-Item -Recurse -Force -LiteralPath $p.Path -ErrorAction SilentlyContinue
             }
           }
-          Get-PSDrive -Name C | Select-Object Used,Free,@{N='FreeGB';E={[math]::Round($_.Free/1GB,1)}}
+          Get-PSDrive -Name C, D -ErrorAction SilentlyContinue |
+              Select-Object Name, Used, Free, @{N='FreeGB';E={[math]::Round($_.Free/1GB,1)}}
 
       - name: Libraries.
         env:
