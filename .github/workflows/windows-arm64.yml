@@ -1,0 +1,203 @@
+name: Windows ARM64
+
+# ARM64 запускаю только вручную или при релизе — на каждый push 6 часов
+# GH-hosted ARM-runner'а тратить смысла нет.
+on:
+  workflow_dispatch:
+  release:
+    types: [created]
+
+jobs:
+  windows-arm64:
+    name: Windows arm64 build
+    # GitHub предоставляет нативный ARM-раннер windows-11-arm.
+    # Своей ARM-машины под self-host у нас нет.
+    runs-on: windows-11-arm
+    timeout-minutes: 360
+
+    env:
+      ARCH: arm64
+      ARCH_LABEL: arm64
+      LIBS_SUBDIR: ''
+      PREPARE_PATH: "Telegram/build/prepare/prepare.py"
+
+    defaults:
+      run:
+        shell: cmd
+
+    steps:
+      - name: Prepare directories.
+        run: |
+          mkdir %userprofile%\TBuild\Libraries
+          mklink /d %GITHUB_WORKSPACE%\TBuild %userprofile%\TBuild
+          echo TBUILD=%GITHUB_WORKSPACE%\TBuild>>%GITHUB_ENV%
+          echo LibrariesPath=%GITHUB_WORKSPACE%\TBuild\Libraries${{ env.LIBS_SUBDIR }}>>%GITHUB_ENV%
+
+      - name: Get repository name.
+        shell: bash
+        run: echo "REPO_NAME=${GITHUB_REPOSITORY##*/}" >> $GITHUB_ENV
+
+      - name: Clone.
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          path: ${{ env.TBUILD }}\${{ env.REPO_NAME }}
+
+      - name: Apply Opengram RSA public key.
+        shell: bash
+        env:
+          OPENGRAM_PUBKEY: ${{ secrets.OPENGRAM_PUBKEY }}
+        run: |
+          cd "$TBUILD/$REPO_NAME"
+          if [ -z "$OPENGRAM_PUBKEY" ]; then
+            echo "::warning::OPENGRAM_PUBKEY secret is not set — build won't connect to the server."
+          else
+            printf '%s\n' "$OPENGRAM_PUBKEY" > pubkey.asc
+            python _apply_pubkey.py
+            echo "Public key applied."
+          fi
+
+      - name: Read SDK version.
+        shell: bash
+        run: |
+          DOCPATH=$TBUILD/$REPO_NAME/docs/building-win.md
+          SDK="$(grep "SDK version" $DOCPATH | sed -r 's/.*\*\*(.*)\*\* SDK version.*/\1/')"
+          echo "SDK=$SDK" >> $GITHUB_ENV
+
+          sed -i '/CMAKE_${lang}_FLAGS_DEBUG_INIT/s/${_Zi}//' "$PROGRAMFILES"/CMake/share/cmake*/Modules/Platform/Windows-MSVC.cmake
+
+          echo "$(sha256sum $TBUILD/$REPO_NAME/$PREPARE_PATH | awk '{ print $1 }')" >> CACHE_KEY.txt
+          echo "$SDK" >> CACHE_KEY.txt
+          echo "CACHE_KEY=$(sha256sum CACHE_KEY.txt | awk '{ print $1 }')" >> $GITHUB_ENV
+
+          git config --global user.email "ci@opengra.me"
+          git config --global user.name "Opengram CI"
+
+      - uses: ilammy/msvc-dev-cmd@v1
+        name: Native Tools Command Prompt.
+        with:
+          arch: arm64
+          sdk: ${{ env.SDK }}
+
+      - name: NuGet sources.
+        run: |
+          nuget sources Disable -Name "Microsoft Visual Studio Offline Packages"
+          nuget sources Add -Source https://api.nuget.org/v3/index.json & exit 0
+
+      - name: ThirdParty cache.
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.TBUILD }}\ThirdParty
+          key: ${{ runner.OS }}-arm64-third-party-${{ env.CACHE_KEY }}
+          restore-keys: ${{ runner.OS }}-arm64-third-party-
+
+      - name: Libraries cache.
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.LibrariesPath }}\*
+            !${{ env.LibrariesPath }}\cache_keys
+            !${{ env.LibrariesPath }}\[qQ]t[_-]*
+            ${{ env.LibrariesPath }}\cache_keys\*
+            !${{ env.LibrariesPath }}\cache_keys\[qQ]t[_-]*
+          key: ${{ runner.OS }}-arm64-libs-${{ env.CACHE_KEY }}
+          restore-keys: ${{ runner.OS }}-arm64-libs-
+
+      - name: Qt cache.
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.LibrariesPath }}\[qQ]t[_-]*
+            ${{ env.LibrariesPath }}\cache_keys\[qQ]t[_-]*
+          key: ${{ runner.OS }}-arm64-qt6-${{ env.CACHE_KEY }}
+          restore-keys: ${{ runner.OS }}-arm64-qt6-
+
+      - name: Libraries.
+        env:
+          GYP_MSVS_OVERRIDE_PATH: 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\'
+          GYP_MSVS_VERSION: 2022
+        run: |
+          %TBUILD%\%REPO_NAME%\Telegram\build\prepare\win.bat silent qt6
+
+      - name: Disable Qt 6.11 strict overflow asserts.
+        # Qt 6.11 хардкодит Q_ASSERT_X в QCheckedInt::operator+ — мьютю
+        # макрос через push/pop_macro в qcheckedint_impl.h, иначе emoji-
+        # picker и пр. падают __fastfail'ом. См. windows.yml для деталей.
+        shell: pwsh
+        run: |
+          $hdr = Get-ChildItem -Path "$env:LibrariesPath" -Recurse -Filter qcheckedint_impl.h `
+              -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $hdr) {
+            Write-Host "::warning::qcheckedint_impl.h not found under $env:LibrariesPath — Qt 6.11 layout may have changed, skipping patch"
+          } else {
+            $marker = '/* opengram-overflow-asserts-disabled */'
+            $content = Get-Content -Raw -LiteralPath $hdr.FullName
+            if ($content.Contains($marker)) {
+              Write-Host "Header already patched at $($hdr.FullName) — skipping"
+            } else {
+              $nl = "`r`n"
+              $prefix = ($marker,
+                '// Qt 6.11 fires Q_ASSERT_X from QCheckedInt::operator+ / -*''s body',
+                '// directly — even when the IgnoreOverflowPolicy template arg is chosen.',
+                '// Mute the assert macros for the duration of this header so the int',
+                '// arithmetic overflows silently like it did in Qt <= 6.10.',
+                '#pragma push_macro("Q_ASSERT_X")',
+                '#pragma push_macro("Q_ASSERT")',
+                '#undef Q_ASSERT_X',
+                '#undef Q_ASSERT',
+                '#define Q_ASSERT_X(cond, where, what) ((void)0)',
+                '#define Q_ASSERT(cond) ((void)0)') -join $nl
+              $suffix = ('',
+                '#pragma pop_macro("Q_ASSERT")',
+                '#pragma pop_macro("Q_ASSERT_X")') -join $nl
+              $patched = $prefix + $nl + $content + $nl + $suffix
+              Set-Content -NoNewline -LiteralPath $hdr.FullName -Value $patched
+              Write-Host "Patched $($hdr.FullName)"
+            }
+          }
+
+      - name: Build Opengram Desktop.
+        env:
+          TDESKTOP_API_ID: ${{ secrets.TDESKTOP_API_ID || '17349' }}
+          TDESKTOP_API_HASH: ${{ secrets.TDESKTOP_API_HASH || '344583e45741c457fe1862106095a5eb' }}
+        run: |
+          cd %TBUILD%\%REPO_NAME%\Telegram
+
+          call configure.bat qt6 arm ^
+          -D CMAKE_BUILD_TYPE=Release ^
+          -D CMAKE_CONFIGURATION_TYPES=Release ^
+          -D CMAKE_MSVC_DEBUG_INFORMATION_FORMAT= ^
+          -D DESKTOP_APP_DISABLE_AUTOUPDATE=ON ^
+          -D DESKTOP_APP_DISABLE_CRASH_REPORTS=ON ^
+          -D TDESKTOP_API_ID=%TDESKTOP_API_ID% ^
+          -D TDESKTOP_API_HASH=%TDESKTOP_API_HASH%
+
+          cmake --build ..\out --config Release --parallel
+
+      - name: Package artifact.
+        run: |
+          set OUT=%TBUILD%\%REPO_NAME%\out\Release
+          set QTBIN=%LibrariesPath%\Qt-6.11.0\bin
+          mkdir artifact
+          if exist %OUT%\Opengram.exe move %OUT%\Opengram.exe artifact\
+          if exist %OUT%\Telegram.exe move %OUT%\Telegram.exe artifact\Opengram.exe
+          if exist %OUT%\Updater.exe move %OUT%\Updater.exe artifact\
+          if exist "%QTBIN%" (
+              for %%f in ("%QTBIN%\icu*.dll" "%QTBIN%\icudt*.dll" "%QTBIN%\icuin*.dll" "%QTBIN%\icuuc*.dll") do (
+                  if exist "%%f" copy /Y "%%f" artifact\ >nul
+              )
+          )
+          dir artifact
+
+      - uses: actions/upload-artifact@v4
+        name: Upload artifact.
+        with:
+          name: opengram-windows-arm64
+          path: artifact\
+          retention-days: 30
+
+      - name: Attach to release.
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifact/*
