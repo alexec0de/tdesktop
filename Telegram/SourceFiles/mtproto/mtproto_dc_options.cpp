@@ -29,56 +29,59 @@ struct BuiltInDc {
 };
 
 const BuiltInDc kBuiltInDcs[] = {
-	{ 1, "195.34.237.232", 4430 },
-	{ 2, "195.34.237.232", 4430 },
-	{ 3, "195.34.237.232", 4430 },
-	{ 4, "195.34.237.232", 4430 },
-	{ 5, "195.34.237.232", 4430 },
+	{ 1, "5.175.223.44", 30444 },
+	{ 2, "5.175.223.44", 30444 },
+	{ 3, "5.175.223.44", 30444 },
+	{ 4, "5.175.223.44", 30444 },
+	{ 5, "5.175.223.44", 30444 },
 };
 
 const BuiltInDc kBuiltInDcsIPv6[] = {
-	{ 1, "195.34.237.232", 4430 },
-	{ 2, "195.34.237.232", 4430 },
-	{ 3, "195.34.237.232", 4430 },
-	{ 4, "195.34.237.232", 4430 },
-	{ 5, "195.34.237.232", 4430 },
+	{ 1, "5.175.223.44", 30444 },
+	{ 2, "5.175.223.44", 30444 },
+	{ 3, "5.175.223.44", 30444 },
+	{ 4, "5.175.223.44", 30444 },
+	{ 5, "5.175.223.44", 30444 },
 };
 
 const BuiltInDc kBuiltInDcsTest[] = {
-	{ 1, "195.34.237.232", 4430 },
-	{ 2, "195.34.237.232", 4430 },
-	{ 3, "195.34.237.232", 4430 }
+	{ 1, "5.175.223.44", 30444 },
+	{ 2, "5.175.223.44", 30444 },
+	{ 3, "5.175.223.44", 30444 }
 };
 
 const BuiltInDc kBuiltInDcsIPv6Test[] = {
-	{ 1, "195.34.237.232", 4430 },
-	{ 2, "195.34.237.232", 4430 },
-	{ 3, "195.34.237.232", 4430 }
+	{ 1, "5.175.223.44", 30444 },
+	{ 2, "5.175.223.44", 30444 },
+	{ 3, "5.175.223.44", 30444 }
 };
 
 // Opengram public RSA key. Replace with your server's pubkey.asc contents
 // (get it with: cat /opt/ogram/data/secrets/pubkey.asc)
 const char *kTestPublicRSAKeys[] = { "\
 -----BEGIN RSA PUBLIC KEY-----\n\
-OPENGRAM_PUBKEY_LINE_1_HERE\n\
-OPENGRAM_PUBKEY_LINE_2_HERE\n\
-OPENGRAM_PUBKEY_LINE_3_HERE\n\
-OPENGRAM_PUBKEY_LINE_4_HERE\n\
-OPENGRAM_PUBKEY_LINE_5_HERE\n\
-OPENGRAM_PUBKEY_LINE_6_HERE\n\
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAhUCF/p27uylgaSUNZk+j\n\
+vjNhhUEv0wZDodxOVr7uiXJpHl6VLMAXKchWQLSYsI8Ni3nu4Kscuwlv5QedCWOM\n\
+XK6j8uw6URwJu5+9iJikc2NjfFUdJ0XhXlx7ZLtxFwwwBAIVck3wIGZg6ntE3e6n\n\
+/JNRfNS83m6SPL6VQxxurS5mPJVlR1+IWQNxGiSUyIBA/LHhGsDisQwe4CX9r8UD\n\
+n7ZnZtgG0GGnd6hliTBil8ixs4sAl+wcICFde8RiA4wGY6HsfEL94DUDOOkYLrho\n\
+YJJKifFCtxDXvkzEqF5M7kmsZG2Gy3czr8syNPw+4W23uM398eHKhPWOqnubZMnd\n\
+eQIDAQAB\n\
 -----END RSA PUBLIC KEY-----" };
 
 const char *kPublicRSAKeys[] = { "\
 -----BEGIN RSA PUBLIC KEY-----\n\
-OPENGRAM_PUBKEY_LINE_1_HERE\n\
-OPENGRAM_PUBKEY_LINE_2_HERE\n\
-OPENGRAM_PUBKEY_LINE_3_HERE\n\
-OPENGRAM_PUBKEY_LINE_4_HERE\n\
-OPENGRAM_PUBKEY_LINE_5_HERE\n\
-OPENGRAM_PUBKEY_LINE_6_HERE\n\
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAhUCF/p27uylgaSUNZk+j\n\
+vjNhhUEv0wZDodxOVr7uiXJpHl6VLMAXKchWQLSYsI8Ni3nu4Kscuwlv5QedCWOM\n\
+XK6j8uw6URwJu5+9iJikc2NjfFUdJ0XhXlx7ZLtxFwwwBAIVck3wIGZg6ntE3e6n\n\
+/JNRfNS83m6SPL6VQxxurS5mPJVlR1+IWQNxGiSUyIBA/LHhGsDisQwe4CX9r8UD\n\
+n7ZnZtgG0GGnd6hliTBil8ixs4sAl+wcICFde8RiA4wGY6HsfEL94DUDOOkYLrho\n\
+YJJKifFCtxDXvkzEqF5M7kmsZG2Gy3czr8syNPw+4W23uM398eHKhPWOqnubZMnd\n\
+eQIDAQAB\n\
 -----END RSA PUBLIC KEY-----" };
 
 } // namespace
+
 
 class DcOptions::WriteLocker {
 public:
