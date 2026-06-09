@@ -70,21 +70,6 @@ jobs:
         with:
           submodules: recursive
           path: ${{ env.TBUILD }}\${{ env.REPO_NAME }}
-
-      - name: Apply Opengram RSA public key.
-        shell: bash
-        env:
-          OPENGRAM_PUBKEY: ${{ secrets.OPENGRAM_PUBKEY }}
-        run: |
-          cd "$TBUILD/$REPO_NAME"
-          if [ -z "$OPENGRAM_PUBKEY" ]; then
-            echo "::warning::OPENGRAM_PUBKEY secret is not set — build won't connect to the server."
-          else
-            printf '%s\n' "$OPENGRAM_PUBKEY" > pubkey.asc
-            python _apply_pubkey.py
-            echo "Public key applied."
-          fi
-
       - name: Read SDK version.
         shell: bash
         run: |
