@@ -60,25 +60,23 @@ const BuiltInDc kBuiltInDcsIPv6Test[] = {
 // (get it with: cat /opt/ogram/data/secrets/pubkey.asc)
 const char *kTestPublicRSAKeys[] = { "\
 -----BEGIN RSA PUBLIC KEY-----\n\
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAhUCF/p27uylgaSUNZk+j\n\
-vjNhhUEv0wZDodxOVr7uiXJpHl6VLMAXKchWQLSYsI8Ni3nu4Kscuwlv5QedCWOM\n\
-XK6j8uw6URwJu5+9iJikc2NjfFUdJ0XhXlx7ZLtxFwwwBAIVck3wIGZg6ntE3e6n\n\
-/JNRfNS83m6SPL6VQxxurS5mPJVlR1+IWQNxGiSUyIBA/LHhGsDisQwe4CX9r8UD\n\
-n7ZnZtgG0GGnd6hliTBil8ixs4sAl+wcICFde8RiA4wGY6HsfEL94DUDOOkYLrho\n\
-YJJKifFCtxDXvkzEqF5M7kmsZG2Gy3czr8syNPw+4W23uM398eHKhPWOqnubZMnd\n\
-eQIDAQAB\n\
+MIIBCgKCAQEAhUCF/p27uylgaSUNZk+jvjNhhUEv0wZDodxOVr7uiXJpHl6VLMAX\n\
+KchWQLSYsI8Ni3nu4Kscuwlv5QedCWOMXK6j8uw6URwJu5+9iJikc2NjfFUdJ0Xh\n\
+Xlx7ZLtxFwwwBAIVck3wIGZg6ntE3e6n/JNRfNS83m6SPL6VQxxurS5mPJVlR1+I\n\
+WQNxGiSUyIBA/LHhGsDisQwe4CX9r8UDn7ZnZtgG0GGnd6hliTBil8ixs4sAl+wc\n\
+ICFde8RiA4wGY6HsfEL94DUDOOkYLrhoYJJKifFCtxDXvkzEqF5M7kmsZG2Gy3cz\n\
+r8syNPw+4W23uM398eHKhPWOqnubZMndeQIDAQAB\n\
 -----END RSA PUBLIC KEY-----" };
 
 const char *kPublicRSAKeys[] = { "\
 -----BEGIN RSA PUBLIC KEY-----\n\
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAhUCF/p27uylgaSUNZk+j\n\
-vjNhhUEv0wZDodxOVr7uiXJpHl6VLMAXKchWQLSYsI8Ni3nu4Kscuwlv5QedCWOM\n\
-XK6j8uw6URwJu5+9iJikc2NjfFUdJ0XhXlx7ZLtxFwwwBAIVck3wIGZg6ntE3e6n\n\
-/JNRfNS83m6SPL6VQxxurS5mPJVlR1+IWQNxGiSUyIBA/LHhGsDisQwe4CX9r8UD\n\
-n7ZnZtgG0GGnd6hliTBil8ixs4sAl+wcICFde8RiA4wGY6HsfEL94DUDOOkYLrho\n\
-YJJKifFCtxDXvkzEqF5M7kmsZG2Gy3czr8syNPw+4W23uM398eHKhPWOqnubZMnd\n\
-eQIDAQAB\n\
------END RSA PUBLIC KEY-----" };
+MIIBCgKCAQEAhUCF/p27uylgaSUNZk+jvjNhhUEv0wZDodxOVr7uiXJpHl6VLMAX\n\
+KchWQLSYsI8Ni3nu4Kscuwlv5QedCWOMXK6j8uw6URwJu5+9iJikc2NjfFUdJ0Xh\n\
+Xlx7ZLtxFwwwBAIVck3wIGZg6ntE3e6n/JNRfNS83m6SPL6VQxxurS5mPJVlR1+I\n\
+WQNxGiSUyIBA/LHhGsDisQwe4CX9r8UDn7ZnZtgG0GGnd6hliTBil8ixs4sAl+wc\n\
+ICFde8RiA4wGY6HsfEL94DUDOOkYLrhoYJJKifFCtxDXvkzEqF5M7kmsZG2Gy3cz\n\
+r8syNPw+4W23uM398eHKhPWOqnubZMndeQIDAQAB\n\
+-----END RSA PUBLIC KEY-----"  };
 
 } // namespace
 
