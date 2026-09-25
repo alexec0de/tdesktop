@@ -29,53 +29,53 @@ struct BuiltInDc {
 };
 
 const BuiltInDc kBuiltInDcs[] = {
-	{ 1, "5.175.223.44", 20443 },
-	{ 2, "5.175.223.44", 20443 },
-	{ 3, "5.175.223.44", 20443 },
-	{ 4, "5.175.223.44", 20443 },
-	{ 5, "5.175.223.44", 20443 },
+	{ 1, "192.168.0.96", 20443 },
+	{ 2, "192.168.0.96", 20443 },
+	{ 3, "192.168.0.96", 20443 },
+	{ 4, "192.168.0.96", 20443 },
+	{ 5, "192.168.0.96", 20443 },
 };
 
 const BuiltInDc kBuiltInDcsIPv6[] = {
-	{ 1, "5.175.223.44", 20443 },
-	{ 2, "5.175.223.44", 20443 },
-	{ 3, "5.175.223.44", 20443 },
-	{ 4, "5.175.223.44", 20443 },
-	{ 5, "5.175.223.44", 20443 },
+	{ 1, "192.168.0.96", 20443 },
+	{ 2, "192.168.0.96", 20443 },
+	{ 3, "192.168.0.96", 20443 },
+	{ 4, "192.168.0.96", 20443 },
+	{ 5, "192.168.0.96", 20443 },
 };
 
 const BuiltInDc kBuiltInDcsTest[] = {
-	{ 1, "5.175.223.44", 20443 },
-	{ 2, "5.175.223.44", 20443 },
-	{ 3, "5.175.223.44", 20443 }
+	{ 1, "192.168.0.96", 20443 },
+	{ 2, "192.168.0.96", 20443 },
+	{ 3, "192.168.0.96", 20443 }
 };
 
 const BuiltInDc kBuiltInDcsIPv6Test[] = {
-	{ 1, "5.175.223.44", 20443 },
-	{ 2, "5.175.223.44", 20443 },
-	{ 3, "5.175.223.44", 20443 }
+	{ 1, "192.168.0.96", 20443 },
+	{ 2, "192.168.0.96", 20443 },
+	{ 3, "192.168.0.96", 20443 }
 };
 
 // Opengram public RSA key. Replace with your server's pubkey.asc contents
 // (get it with: cat /opt/ogram/data/secrets/pubkey.asc)
 const char *kTestPublicRSAKeys[] = { "\
 -----BEGIN RSA PUBLIC KEY-----\n\
-MIIBCgKCAQEAhUCF/p27uylgaSUNZk+jvjNhhUEv0wZDodxOVr7uiXJpHl6VLMAX\n\
-KchWQLSYsI8Ni3nu4Kscuwlv5QedCWOMXK6j8uw6URwJu5+9iJikc2NjfFUdJ0Xh\n\
-Xlx7ZLtxFwwwBAIVck3wIGZg6ntE3e6n/JNRfNS83m6SPL6VQxxurS5mPJVlR1+I\n\
-WQNxGiSUyIBA/LHhGsDisQwe4CX9r8UDn7ZnZtgG0GGnd6hliTBil8ixs4sAl+wc\n\
-ICFde8RiA4wGY6HsfEL94DUDOOkYLrhoYJJKifFCtxDXvkzEqF5M7kmsZG2Gy3cz\n\
-r8syNPw+4W23uM398eHKhPWOqnubZMndeQIDAQAB\n\
+MIIBCgKCAQEAh5H3Mpupd/sNQyWm8WXA871TgJMEthFrh+c3LNzNzg9U6xvE3bTJ\n\
+cbIBaOWlm8E+3vcqJ5ZktnX4cw3UWCutn4/D2FqOrNK26klBSE30A1Fs6T+murjx\n\
+EkYkgckPkLPdG4lH8gIOxu8ZFn6EXC6hnELVl3pQx9lmrDFntD87o0Xll5a63Dzc\n\
+5VFy3zyc6QtMC2K0OF2sqiT2rZZYe38+oxCCucFfef1a1RIaUX4D+1b3hFsv3JWP\n\
+V0hI4+575avrqeWkUqf5bkOSous8tV5WUKXdnH6Cn+dheSKowBYk7NT/ceP+DQOz\n\
+jhOJEJH0CxBfkRGoyx1d4Cpdo9Hg7dIlRwIDAQAB\n\
 -----END RSA PUBLIC KEY-----" };
 
 const char *kPublicRSAKeys[] = { "\
 -----BEGIN RSA PUBLIC KEY-----\n\
-MIIBCgKCAQEAhUCF/p27uylgaSUNZk+jvjNhhUEv0wZDodxOVr7uiXJpHl6VLMAX\n\
-KchWQLSYsI8Ni3nu4Kscuwlv5QedCWOMXK6j8uw6URwJu5+9iJikc2NjfFUdJ0Xh\n\
-Xlx7ZLtxFwwwBAIVck3wIGZg6ntE3e6n/JNRfNS83m6SPL6VQxxurS5mPJVlR1+I\n\
-WQNxGiSUyIBA/LHhGsDisQwe4CX9r8UDn7ZnZtgG0GGnd6hliTBil8ixs4sAl+wc\n\
-ICFde8RiA4wGY6HsfEL94DUDOOkYLrhoYJJKifFCtxDXvkzEqF5M7kmsZG2Gy3cz\n\
-r8syNPw+4W23uM398eHKhPWOqnubZMndeQIDAQAB\n\
+MIIBCgKCAQEAh5H3Mpupd/sNQyWm8WXA871TgJMEthFrh+c3LNzNzg9U6xvE3bTJ\n\
+cbIBaOWlm8E+3vcqJ5ZktnX4cw3UWCutn4/D2FqOrNK26klBSE30A1Fs6T+murjx\n\
+EkYkgckPkLPdG4lH8gIOxu8ZFn6EXC6hnELVl3pQx9lmrDFntD87o0Xll5a63Dzc\n\
+5VFy3zyc6QtMC2K0OF2sqiT2rZZYe38+oxCCucFfef1a1RIaUX4D+1b3hFsv3JWP\n\
+V0hI4+575avrqeWkUqf5bkOSous8tV5WUKXdnH6Cn+dheSKowBYk7NT/ceP+DQOz\n\
+jhOJEJH0CxBfkRGoyx1d4Cpdo9Hg7dIlRwIDAQAB\n\
 -----END RSA PUBLIC KEY-----"  };
 
 } // namespace
