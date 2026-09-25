@@ -497,18 +497,7 @@ void ChatBackground::initialRead() {
 		return;
 	}
 	if (_themeObject.pathAbsolute.isEmpty() && !nightMode()) {
-		// Opengram: дефолт «из коробки» — Tinted (Night) + зелёный
-		// акцент, как я всегда ставлю руками на экране логина, вместо
-		// штатного Classic + синий ТГ. Эта ветка срабатывает только на
-		// свежем профиле; стоит юзеру выбрать любую тему — выставится
-		// theme/nightMode и сюда мы больше не зайдём, его выбор победит.
-		auto &settings = Core::App().settings();
-		settings.themesAccentColors().set(
-			EmbeddedType::Night,
-			QColor(0x46, 0x6f, 0x42)); // зелёный пресет Tinted
-		Local::writeSettings();
-		ToggleNightMode(QString(":/gui/night.tdesktop-theme"));
-		KeepApplied();
+		applyDefaultThemeAccentColorizer();
 	}
 	if (!Local::readBackground()) {
 		set(Data::ThemeWallPaper());
