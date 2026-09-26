@@ -105,6 +105,10 @@ jobs:
         with:
           arch: x64_x86
           sdk: ${{ env.SDK }}
+          # cmake_helpers собирает приложение с -T v143 (14.44), а по умолчанию
+          # VS 2026 включает 14.50. Библиотеки prepare должны собираться тем
+          # же 14.44, иначе при линковке нет __std_rotate и т.п. из новой STL.
+          toolset: 14.44
 
       - name: Locate Visual Studio for gyp.
         # windows-latest переехал с VS 2022 на VS 2026 (каталог ...\18\...),
@@ -152,10 +156,10 @@ jobs:
             !${{ env.LibrariesPath }}\[qQ]t[_-]*
             ${{ env.LibrariesPath }}\cache_keys\*
             !${{ env.LibrariesPath }}\cache_keys\[qQ]t[_-]*
-          key: ${{ runner.OS }}-x64_x86-libs-${{ env.CACHE_KEY }}
+          key: ${{ runner.OS }}-x64_x86-libs-v2-${{ env.CACHE_KEY }}
           restore-keys: |
-            ${{ runner.OS }}-x64_x86-libs-${{ env.CACHE_KEY }}-
-            ${{ runner.OS }}-x64_x86-libs-
+            ${{ runner.OS }}-x64_x86-libs-v2-${{ env.CACHE_KEY }}-
+            ${{ runner.OS }}-x64_x86-libs-v2-
 
       - name: Qt cache.
         uses: actions/cache/restore@v4
@@ -163,10 +167,10 @@ jobs:
           path: |
             ${{ env.LibrariesPath }}\[qQ]t[_-]*
             ${{ env.LibrariesPath }}\cache_keys\[qQ]t[_-]*
-          key: ${{ runner.OS }}-x64_x86-qt6-${{ env.CACHE_KEY }}
+          key: ${{ runner.OS }}-x64_x86-qt6-v2-${{ env.CACHE_KEY }}
           restore-keys: |
-            ${{ runner.OS }}-x64_x86-qt6-${{ env.CACHE_KEY }}-
-            ${{ runner.OS }}-x64_x86-qt6-
+            ${{ runner.OS }}-x64_x86-qt6-v2-${{ env.CACHE_KEY }}-
+            ${{ runner.OS }}-x64_x86-qt6-v2-
 
       - name: Free disk space (Windows).
         shell: pwsh
@@ -349,7 +353,7 @@ jobs:
             !${{ env.LibrariesPath }}\[qQ]t[_-]*
             ${{ env.LibrariesPath }}\cache_keys\*
             !${{ env.LibrariesPath }}\cache_keys\[qQ]t[_-]*
-          key: ${{ runner.OS }}-x64_x86-libs-${{ env.CACHE_KEY }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: ${{ runner.OS }}-x64_x86-libs-v2-${{ env.CACHE_KEY }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Save Qt cache.
         if: always() && steps.cache_changes.outputs.qt == 'true'
@@ -358,7 +362,7 @@ jobs:
           path: |
             ${{ env.LibrariesPath }}\[qQ]t[_-]*
             ${{ env.LibrariesPath }}\cache_keys\[qQ]t[_-]*
-          key: ${{ runner.OS }}-x64_x86-qt6-${{ env.CACHE_KEY }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: ${{ runner.OS }}-x64_x86-qt6-v2-${{ env.CACHE_KEY }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Build Opengram Desktop.
         env:

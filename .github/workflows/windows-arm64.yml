@@ -79,20 +79,45 @@ jobs:
           arch: arm64
           sdk: ${{ env.SDK }}
 
+      - name: Locate Visual Studio for gyp.
+        # windows-latest переехал с VS 2022 на VS 2026 (каталог ...\18\...),
+        # поэтому жёстко прописанный путь к 2022\Enterprise ломал gyp в
+        # breakpad ("vcvarsall.bat is missing"). Ищу установку через vswhere
+        # и отдаю gyp фактический путь и версию.
+        shell: pwsh
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $vsPath = & $vswhere -latest -products * -prerelease -property installationPath
+          $vsMajor = (& $vswhere -latest -products * -prerelease -property installationVersion).Split('.')[0]
+          if (-not $vsPath -or -not (Test-Path (Join-Path $vsPath 'VC\Auxiliary\Build\vcvarsall.bat'))) {
+            Write-Host "::error::Visual Studio with VC++ tools not found (vswhere: '$vsPath')"
+            exit 1
+          }
+          $gypVersion = switch ($vsMajor) {
+            '18' { '2026' }
+            '17' { '2022' }
+            default { Write-Host "::error::Unsupported Visual Studio major version $vsMajor"; exit 1 }
+          }
+          Write-Host "Visual Studio $gypVersion at $vsPath"
+          "GYP_MSVS_OVERRIDE_PATH=$vsPath\" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          "GYP_MSVS_VERSION=$gypVersion"   | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+
       - name: NuGet sources.
         run: |
           nuget sources Disable -Name "Microsoft Visual Studio Offline Packages"
           nuget sources Add -Source https://api.nuget.org/v3/index.json & exit 0
 
       - name: ThirdParty cache.
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: ${{ env.TBUILD }}\ThirdParty
           key: ${{ runner.OS }}-arm64-third-party-${{ env.CACHE_KEY }}
-          restore-keys: ${{ runner.OS }}-arm64-third-party-
+          restore-keys: |
+            ${{ runner.OS }}-arm64-third-party-${{ env.CACHE_KEY }}-
+            ${{ runner.OS }}-arm64-third-party-
 
       - name: Libraries cache.
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: |
             ${{ env.LibrariesPath }}\*
@@ -101,21 +126,41 @@ jobs:
             ${{ env.LibrariesPath }}\cache_keys\*
             !${{ env.LibrariesPath }}\cache_keys\[qQ]t[_-]*
           key: ${{ runner.OS }}-arm64-libs-${{ env.CACHE_KEY }}
-          restore-keys: ${{ runner.OS }}-arm64-libs-
+          restore-keys: |
+            ${{ runner.OS }}-arm64-libs-${{ env.CACHE_KEY }}-
+            ${{ runner.OS }}-arm64-libs-
 
       - name: Qt cache.
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: |
             ${{ env.LibrariesPath }}\[qQ]t[_-]*
             ${{ env.LibrariesPath }}\cache_keys\[qQ]t[_-]*
           key: ${{ runner.OS }}-arm64-qt6-${{ env.CACHE_KEY }}
-          restore-keys: ${{ runner.OS }}-arm64-qt6-
+          restore-keys: |
+            ${{ runner.OS }}-arm64-qt6-${{ env.CACHE_KEY }}-
+            ${{ runner.OS }}-arm64-qt6-
+
+      - name: Snapshot prepare cache keys.
+        # prepare.py пишет cache_keys\<stage> только после успешной сборки
+        # стадии. Запоминаю их до prepare, чтобы потом сохранять кэш только
+        # если что-то реально дособралось.
+        shell: pwsh
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP 'cache-keys-before'
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          function Get-Keys($dir, [scriptblock]$filter) {
+            if (-not (Test-Path $dir)) { return '' }
+            (Get-ChildItem -LiteralPath $dir -File | Where-Object $filter | Sort-Object Name |
+              ForEach-Object { $_.Name + '=' + (Get-Content -Raw -LiteralPath $_.FullName) }) -join ';'
+          }
+          $tp = Join-Path $env:TBUILD 'ThirdParty\cache_keys'
+          $lib = Join-Path $env:LibrariesPath 'cache_keys'
+          Get-Keys $tp { $true }                          | Set-Content (Join-Path $out 'third_party')
+          Get-Keys $lib { $_.Name -notmatch '^[qQ]t[_-]' } | Set-Content (Join-Path $out 'libs')
+          Get-Keys $lib { $_.Name -match '^[qQ]t[_-]' }    | Set-Content (Join-Path $out 'qt')
 
       - name: Libraries.
-        env:
-          GYP_MSVS_OVERRIDE_PATH: 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\'
-          GYP_MSVS_VERSION: 2022
         run: |
           %TBUILD%\%REPO_NAME%\Telegram\build\prepare\win.bat silent qt6
 
@@ -155,6 +200,67 @@ jobs:
               Write-Host "Patched $($hdr.FullName)"
             }
           }
+
+      - name: Detect prepare cache changes.
+        # Кэш сохраняется отдельными шагами с if: always(), а не post-шагом
+        # actions/cache: тот сохраняет только при успехе всего job, и после
+        # падения prepare следующий запуск собирал всё заново.
+        id: cache_changes
+        if: always()
+        shell: pwsh
+        run: |
+          $before = Join-Path $env:RUNNER_TEMP 'cache-keys-before'
+          function Get-Keys($dir, [scriptblock]$filter) {
+            if (-not (Test-Path $dir)) { return '' }
+            (Get-ChildItem -LiteralPath $dir -File | Where-Object $filter | Sort-Object Name |
+              ForEach-Object { $_.Name + '=' + (Get-Content -Raw -LiteralPath $_.FullName) }) -join ';'
+          }
+          if (-not $env:TBUILD -or -not $env:LibrariesPath -or -not (Test-Path $before)) {
+            Write-Host "prepare did not run, nothing to save"
+            exit 0
+          }
+          $tp = Join-Path $env:TBUILD 'ThirdParty\cache_keys'
+          $lib = Join-Path $env:LibrariesPath 'cache_keys'
+          $now = @{
+            third_party = Get-Keys $tp { $true }
+            libs        = Get-Keys $lib { $_.Name -notmatch '^[qQ]t[_-]' }
+            qt          = Get-Keys $lib { $_.Name -match '^[qQ]t[_-]' }
+          }
+          foreach ($name in $now.Keys) {
+            $old = (Get-Content -Raw -LiteralPath (Join-Path $before $name) -ErrorAction SilentlyContinue)
+            $old = if ($old) { $old.Trim() } else { '' }
+            $changed = ($now[$name] -and $now[$name] -ne $old)
+            Write-Host "$name changed: $changed"
+            "$name=$($changed.ToString().ToLower())" | Out-File -Append -Encoding utf8 $env:GITHUB_OUTPUT
+          }
+
+      - name: Save ThirdParty cache.
+        if: always() && steps.cache_changes.outputs.third_party == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.TBUILD }}\ThirdParty
+          key: ${{ runner.OS }}-arm64-third-party-${{ env.CACHE_KEY }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Save Libraries cache.
+        if: always() && steps.cache_changes.outputs.libs == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ${{ env.LibrariesPath }}\*
+            !${{ env.LibrariesPath }}\cache_keys
+            !${{ env.LibrariesPath }}\[qQ]t[_-]*
+            ${{ env.LibrariesPath }}\cache_keys\*
+            !${{ env.LibrariesPath }}\cache_keys\[qQ]t[_-]*
+          key: ${{ runner.OS }}-arm64-libs-${{ env.CACHE_KEY }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Save Qt cache.
+        if: always() && steps.cache_changes.outputs.qt == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ${{ env.LibrariesPath }}\[qQ]t[_-]*
+            ${{ env.LibrariesPath }}\cache_keys\[qQ]t[_-]*
+          key: ${{ runner.OS }}-arm64-qt6-${{ env.CACHE_KEY }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Build Opengram Desktop.
         env:
