@@ -106,6 +106,29 @@ jobs:
           arch: x64_x86
           sdk: ${{ env.SDK }}
 
+      - name: Locate Visual Studio for gyp.
+        # windows-latest переехал с VS 2022 на VS 2026 (каталог ...\18\...),
+        # поэтому жёстко прописанный путь к 2022\Enterprise ломал gyp в
+        # breakpad ("vcvarsall.bat is missing"). Ищу установку через vswhere
+        # и отдаю gyp фактический путь и версию.
+        shell: pwsh
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $vsPath = & $vswhere -latest -products * -prerelease -property installationPath
+          $vsMajor = (& $vswhere -latest -products * -prerelease -property installationVersion).Split('.')[0]
+          if (-not $vsPath -or -not (Test-Path (Join-Path $vsPath 'VC\Auxiliary\Build\vcvarsall.bat'))) {
+            Write-Host "::error::Visual Studio with VC++ tools not found (vswhere: '$vsPath')"
+            exit 1
+          }
+          $gypVersion = switch ($vsMajor) {
+            '18' { '2026' }
+            '17' { '2022' }
+            default { Write-Host "::error::Unsupported Visual Studio major version $vsMajor"; exit 1 }
+          }
+          Write-Host "Visual Studio $gypVersion at $vsPath"
+          "GYP_MSVS_OVERRIDE_PATH=$vsPath\" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          "GYP_MSVS_VERSION=$gypVersion"   | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+
       - name: NuGet sources.
         run: |
           nuget sources Disable -Name "Microsoft Visual Studio Offline Packages"
@@ -197,9 +220,6 @@ jobs:
               Select-Object Name, Used, Free, @{N='FreeGB';E={[math]::Round($_.Free/1GB,1)}}
 
       - name: Libraries.
-        env:
-          GYP_MSVS_OVERRIDE_PATH: 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\'
-          GYP_MSVS_VERSION: 2022
         run: |
           %TBUILD%\%REPO_NAME%\Telegram\build\prepare\win.bat silent qt6
 
