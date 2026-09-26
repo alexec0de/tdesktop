@@ -467,7 +467,6 @@ void Widget::fixOrder() {
 	_next->raise();
 	if (_update) _update->raise();
 	if (_changeLanguage) _changeLanguage->raise();
-	if (_support) _support->raise();
 	_settings->raise();
 	_back->raise();
 	floatPlayerRaiseAll();
@@ -477,7 +476,6 @@ void Widget::fixOrder() {
 void Widget::moveToStep(Step *step, StackAction action, Animate animate) {
 	appendStep(step);
 	_back->raise();
-	_settings->raise();
 	if (_update) {
 		_update->raise();
 	}
@@ -550,11 +548,6 @@ void Widget::showTerms() {
 	}
 	if (_changeLanguage) {
 		_changeLanguage->toggle(
-			!_terms && !_resetAccount && _nextShown,
-			anim::type::normal);
-	}
-	if (_support) {
-		_support->toggle(
 			!_terms && !_resetAccount && _nextShown,
 			anim::type::normal);
 	}
